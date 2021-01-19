@@ -67,10 +67,10 @@ fn read_sgx_enclave() -> Result<Vec<Enclave>, std::io::Error> {
             Enclave {
                 PID: v[0],
                 EID: v[1],
-                SIZE: Memory(v[2]),
-                EADDs: Memory(v[3]),
-                RSS: Memory(v[4]),
-                VA: Memory(v[5]),
+                SIZE: Memory(v[2]>>10),
+                EADDs: Memory(v[3]<<2),
+                RSS: Memory(v[4]<<2),
+                VA: Memory(v[5]<<2),
                 //startTime
             }
         })
