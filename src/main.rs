@@ -155,7 +155,7 @@ fn main() {
 
         write!(
             screen,
-            "Enclaves running:    {:>8}, Total enclaves created: {:>8} \n\r",
+            "{} enclaves running, Total {} enclaves created\n\r",
             sgx_encl_created - sgx_encl_released,
             sgx_encl_released
         )
