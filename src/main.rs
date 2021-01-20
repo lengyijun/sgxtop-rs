@@ -1,8 +1,14 @@
 use std::fmt::{Display, Error, Formatter};
 use std::fs;
+use std::io::{stdin, stdout, Write};
 use std::path::{Path, PathBuf};
 
 use ansi_term::Colour;
+
+use termion::event::Key;
+use termion::input::TermRead;
+use termion::raw::IntoRawMode;
+use termion::screen::*;
 
 #[derive(Debug)]
 struct Memory(u32);
@@ -45,7 +51,7 @@ impl Display for Enclave {
 
         write!(
             f,
-            "{:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {}\n",
+            "{:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {}\n\r",
             self.EID, self.PID, self.SIZE, self.EADDs, self.RSS, self.VA, command
         )
     }
@@ -67,10 +73,10 @@ fn read_sgx_enclave() -> Result<Vec<Enclave>, std::io::Error> {
             Enclave {
                 PID: v[0],
                 EID: v[1],
-                SIZE: Memory(v[2]>>10),
-                EADDs: Memory(v[3]<<2),
-                RSS: Memory(v[4]<<2),
-                VA: Memory(v[5]<<2),
+                SIZE: Memory(v[2] >> 10),
+                EADDs: Memory(v[3] << 2),
+                RSS: Memory(v[4] << 2),
+                VA: Memory(v[5] << 2),
                 //startTime
             }
         })
@@ -79,18 +85,40 @@ fn read_sgx_enclave() -> Result<Vec<Enclave>, std::io::Error> {
 }
 
 fn main() {
+    let stdin = stdin();
+    let mut screen = AlternateScreen::from(stdout().into_raw_mode().unwrap());
+    write!(screen, "{}", termion::cursor::Hide).unwrap();
+
     //text: black
     //backgroud: white
     let style = Colour::Black.on(Colour::White);
-    print!(
-        "{}",
-        style.paint(&format!(
-            "{:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {}\n",
-            "EID", "PID", "SIZE", "EADDs", "RSS", "VA", "Command"
-        ))
-    );
-    let ev:Vec<Enclave>=read_sgx_enclave().expect("/proc/enclaves not found");
-    for e in ev{
-        println!("{}",e);
+    write!(
+        screen,
+        "{}{}{:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {}\n\r",
+        termion::clear::All,
+        termion::cursor::Goto(1, 1),
+        "EID",
+        "PID",
+        "SIZE",
+        "EADDs",
+        "RSS",
+        "VA",
+        "Command"
+    )
+    .unwrap();
+
+    let ev: Vec<Enclave> = read_sgx_enclave().expect("/proc/enclaves not found");
+    for e in ev {
+        println!("{}", e);
     }
+    screen.flush().unwrap();
+
+    for c in stdin.keys() {
+        match c.unwrap() {
+            Key::Char('q') => break,
+            _ => {}
+        }
+        screen.flush().unwrap();
+    }
+    write!(screen, "{}", termion::cursor::Show).unwrap();
 }
