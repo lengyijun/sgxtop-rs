@@ -85,6 +85,14 @@ fn read_sgx_enclave() -> Result<Vec<Enclave>, std::io::Error> {
 }
 
 fn main() {
+    let mut sgx_encl_created: u32;
+    let mut sgx_encl_released: u32;
+    let mut sgx_pages_alloced: Option<u32> = None;
+    let mut sgx_pages_freed: Option<u32> = None;
+    let mut sgx_nr_total_epc_pages: u32; //will not changed later
+    let mut sgx_va_pages_cnt: u32;
+    let mut sgx_nr_free_pages: u32;
+
     let stdin = stdin();
     let mut screen = AlternateScreen::from(stdout().into_raw_mode().unwrap());
     write!(screen, "{}", termion::cursor::Hide).unwrap();
