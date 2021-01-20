@@ -59,7 +59,7 @@ impl Display for Enclave {
 
         write!(
             f,
-            "{:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {}\n\r",
+            "{:>8} {:>8} {:>8} {:>8} {:>8} {:>8}  {}\n\r",
             self.EID, self.PID, self.SIZE, self.EADDs, self.RSS, self.VA, command
         )
     }
@@ -174,7 +174,7 @@ fn main() {
 
     write!(
         screen,
-        "\n\r{}{}{:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {}{}\n\r",
+        "\n\r{}{}{:>8} {:>8} {:>8} {:>8} {:>8} {:>8}  {}{}\n\r",
         color::Fg(color::Black),
         color::Bg(color::White),
         "EID",
