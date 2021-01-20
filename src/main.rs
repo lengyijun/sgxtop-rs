@@ -114,7 +114,8 @@ fn main() {
         "{}{}",
         termion::clear::All,
         termion::cursor::Goto(1, 1),
-    );
+    )
+    .unwrap();
     {
         let f = fs::read("/proc/sgx_stats").expect("/proc/sgx_stats not found");
         let mut iter = f
@@ -161,12 +162,7 @@ fn main() {
             eadd_speed, eremove_speed
         )
         .unwrap();
-        write!(
-            screen,
-            "ewb {:>8}/s, eldu {:>8}/s \n\r",
-            0,0
-        )
-        .unwrap();
+        write!(screen, "ewb {:>8}/s, eldu {:>8}/s \n\r", 0, 0).unwrap();
         write!(
             screen,
             "EPC mem: {:>8} total, {:>8} free, {:>8} used, {:>8} VA\n\r",
