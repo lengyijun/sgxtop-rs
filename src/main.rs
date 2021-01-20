@@ -77,8 +77,7 @@ fn read_sgx_enclave() -> Result<Vec<Enclave>, std::io::Error> {
             let v: Vec<u64> = line
                 .split(|x| x == &32 || x == &10 || x == &13)
                 .take(6)
-                .map(|x| String::from_utf8(x.to_vec()).unwrap())
-                .map(|x| x.parse::<u64>().unwrap())
+                .map(|x| x.iter().fold(0 as u64, |acc, x| acc * 10 + (x - 48) as u64))
                 .collect();
             Enclave {
                 PID: v[0],
@@ -109,7 +108,8 @@ fn main() {
 
     //text: black
     //backgroud: white
-    let style = Colour::Black.on(Colour::White);
+    //let style = Colour::Black.on(Colour::White);
+
     write!(
         screen,
         "{}{}",
@@ -117,13 +117,16 @@ fn main() {
         termion::cursor::Goto(1, 1),
     )
     .unwrap();
+
     {
         let f = fs::read("/proc/sgx_stats").expect("/proc/sgx_stats not found");
         let mut iter = f
             .split(|x| x == &32 || x == &10 || x == &13) //split with space
             .take(7)
-            .map(|x| String::from_utf8(x.to_vec()).unwrap())
-            .map(|x| x.parse::<u64>().unwrap());
+            .map(|x| {
+                x.iter()
+                    .fold(0 as u64, |acc, x| acc * 10 + ((x - 48) as u64))
+            });
 
         sgx_encl_created = iter.next().unwrap();
         sgx_encl_released = iter.next().unwrap();
