@@ -12,11 +12,11 @@ use termion::raw::IntoRawMode;
 use termion::screen::*;
 
 #[derive(Debug, Clone, Copy)]
-struct Memory(u32);
+struct Memory(u64);
 impl Display for Memory {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         if self.0 >= 1024 {
-            let x: u32 = self.0 / 1024;
+            let x: u64 = self.0 / 1024;
             write!(f, "{:>7}M", x)
         } else {
             write!(f, "{:>7}K", self.0)
@@ -34,8 +34,8 @@ impl Sub for Memory {
 
 #[derive(Debug)]
 struct Enclave {
-    PID: u32,
-    EID: u32,
+    PID: u64,
+    EID: u64,
     SIZE: Memory,
     EADDs: Memory,
     RSS: Memory,
@@ -74,10 +74,11 @@ fn read_sgx_enclave() -> Result<Vec<Enclave>, std::io::Error> {
         .split(|x| x == &10 || x == &13)
         .filter(|line| line.len() != 0)
         .map(|line| {
-            let v: Vec<u32> = line
-                .split(|x| x == &32)
+            let v: Vec<u64> = line
+                .split(|x| x == &32 || x == &10 || x == &13)
+                .take(6)
                 .map(|x| String::from_utf8(x.to_vec()).unwrap())
-                .map(|x| x.parse::<u32>().unwrap())
+                .map(|x| x.parse::<u64>().unwrap())
                 .collect();
             Enclave {
                 PID: v[0],
@@ -94,8 +95,8 @@ fn read_sgx_enclave() -> Result<Vec<Enclave>, std::io::Error> {
 }
 
 fn main() {
-    let mut sgx_encl_created: u32;
-    let mut sgx_encl_released: u32;
+    let mut sgx_encl_created: u64;
+    let mut sgx_encl_released: u64;
     let mut sgx_pages_alloced: Option<Memory> = None;
     let mut sgx_pages_freed: Option<Memory> = None;
     let mut sgx_nr_total_epc_pages: Memory; //will not changed later
@@ -122,7 +123,7 @@ fn main() {
             .split(|x| x == &32 || x == &10 || x == &13) //split with space
             .take(7)
             .map(|x| String::from_utf8(x.to_vec()).unwrap())
-            .map(|x| x.parse::<u32>().unwrap());
+            .map(|x| x.parse::<u64>().unwrap());
 
         sgx_encl_created = iter.next().unwrap();
         sgx_encl_released = iter.next().unwrap();
