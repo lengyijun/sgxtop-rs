@@ -109,9 +109,11 @@ fn main() {
     {
         let f = fs::read("/proc/sgx_stats").expect("/proc/sgx_stats not found");
         let mut iter = f
-            .split(|x| x == &32) //split with space
+            .split(|x| x == &32 || x == &10 || x == &13) //split with space
+            .take(7)
             .map(|x| String::from_utf8(x.to_vec()).unwrap())
             .map(|x| x.parse::<u32>().unwrap());
+
         sgx_encl_created = iter.next().unwrap();
         sgx_encl_released = iter.next().unwrap();
         let sgx_pages_alloced_new = iter.next().unwrap();
@@ -133,22 +135,23 @@ fn main() {
                 Some(old) => sgx_pages_freed_new - old,
             }
         };
+
         sgx_pages_alloced = Some(sgx_pages_alloced_new);
         sgx_pages_freed = Some(sgx_pages_freed_new);
 
-        //todo
         write!(
             screen,
-            "{:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {}\n\r",
-            "EID", "PID", "SIZE", "EADDs", "RSS", "VA", "Command"
-        );
+            "Enclaves running:    {:>8}, Total enclaves created: {:>8} \n\r",
+            sgx_encl_created - sgx_encl_released,
+            sgx_encl_released
+        )
+        .unwrap();
     }
 
     write!(
         screen,
-        "Enclaves running:    {:>8}, Total enclaves created: {:>8} \n\r",
-        sgx_encl_created,
-        sgx_encl_released
+        "{:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {}\n\r",
+        "EID", "PID", "SIZE", "EADDs", "RSS", "VA", "Command"
     )
     .unwrap();
 
