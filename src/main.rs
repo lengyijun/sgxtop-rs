@@ -176,7 +176,16 @@ fn main() {
     write!(
         screen,
         "\n\r{}{}{:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {}{}\n\r",
-        color::Fg(color::Black),color::Bg(color::White),"EID", "PID", "SIZE", "EADDs", "RSS", "VA", "Command",style::Reset
+        color::Fg(color::Black),
+        color::Bg(color::White),
+        "EID",
+        "PID",
+        "SIZE",
+        "EADDs",
+        "RSS",
+        "VA",
+        "Command",
+        style::Reset
     )
     .unwrap();
 
