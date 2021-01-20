@@ -101,7 +101,6 @@ fn main() {
     let mut sgx_va_pages_cnt: Memory;
     let mut sgx_nr_free_pages: Memory;
 
-    let stdin = stdin();
     let mut screen = AlternateScreen::from(stdout().into_raw_mode().unwrap());
     write!(screen, "{}", termion::cursor::Hide).unwrap();
 
@@ -195,6 +194,7 @@ fn main() {
     }
     screen.flush().unwrap();
 
+    let stdin = stdin();
     for c in stdin.keys() {
         match c.unwrap() {
             Key::Char('q') => break,
