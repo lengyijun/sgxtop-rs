@@ -1,6 +1,7 @@
 use std::fmt::{Display, Error, Formatter};
 use std::fs;
 use std::io::{stdin, stdout, Write};
+use std::ops::Sub;
 use std::path::{Path, PathBuf};
 
 use ansi_term::Colour;
@@ -10,7 +11,7 @@ use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 use termion::screen::*;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 struct Memory(u32);
 impl Display for Memory {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
@@ -20,6 +21,14 @@ impl Display for Memory {
         } else {
             write!(f, "{:>7}K", self.0)
         }
+    }
+}
+
+impl Sub for Memory {
+    type Output = Self;
+
+    fn sub(self, other: Self) -> Self {
+        Self(self.0 - other.0)
     }
 }
 
@@ -87,11 +96,11 @@ fn read_sgx_enclave() -> Result<Vec<Enclave>, std::io::Error> {
 fn main() {
     let mut sgx_encl_created: u32;
     let mut sgx_encl_released: u32;
-    let mut sgx_pages_alloced: Option<u32> = None;
-    let mut sgx_pages_freed: Option<u32> = None;
-    let mut sgx_nr_total_epc_pages: u32; //will not changed later
-    let mut sgx_va_pages_cnt: u32;
-    let mut sgx_nr_free_pages: u32;
+    let mut sgx_pages_alloced: Option<Memory> = None;
+    let mut sgx_pages_freed: Option<Memory> = None;
+    let mut sgx_nr_total_epc_pages: Memory; //will not changed later
+    let mut sgx_va_pages_cnt: Memory;
+    let mut sgx_nr_free_pages: Memory;
 
     let stdin = stdin();
     let mut screen = AlternateScreen::from(stdout().into_raw_mode().unwrap());
@@ -116,22 +125,22 @@ fn main() {
 
         sgx_encl_created = iter.next().unwrap();
         sgx_encl_released = iter.next().unwrap();
-        let sgx_pages_alloced_new = iter.next().unwrap();
-        let sgx_pages_freed_new = iter.next().unwrap();
-        sgx_nr_total_epc_pages = iter.next().unwrap();
-        sgx_va_pages_cnt = iter.next().unwrap();
-        sgx_nr_free_pages = iter.next().unwrap();
+        let sgx_pages_alloced_new = Memory(iter.next().unwrap() << 2);
+        let sgx_pages_freed_new = Memory(iter.next().unwrap() << 2);
+        sgx_nr_total_epc_pages = Memory(iter.next().unwrap() << 2);
+        sgx_va_pages_cnt = Memory(iter.next().unwrap() << 2);
+        sgx_nr_free_pages = Memory(iter.next().unwrap() << 2);
 
-        let add_page_speed = {
+        let eadd_speed = {
             match sgx_pages_alloced {
-                None => 0,
+                None => Memory(0),
                 Some(old) => sgx_pages_alloced_new - old,
             }
         };
 
-        let free_page_speed = {
+        let eremove_speed = {
             match sgx_pages_freed {
-                None => 0,
+                None => Memory(0),
                 Some(old) => sgx_pages_freed_new - old,
             }
         };
@@ -146,11 +155,32 @@ fn main() {
             sgx_encl_released
         )
         .unwrap();
+        write!(
+            screen,
+            "eadd {:>8}/s, eremove {:>8}/s \n\r",
+            eadd_speed, eremove_speed
+        )
+        .unwrap();
+        write!(
+            screen,
+            "ewb {:>8}/s, eldu {:>8}/s \n\r",
+            0,0
+        )
+        .unwrap();
+        write!(
+            screen,
+            "EPC mem: {:>8} total, {:>8} free, {:>8} used, {:>8} VA\n\r",
+            sgx_nr_total_epc_pages,
+            sgx_nr_free_pages,
+            sgx_nr_total_epc_pages - sgx_nr_free_pages,
+            sgx_va_pages_cnt,
+        )
+        .unwrap();
     }
 
     write!(
         screen,
-        "{:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {}\n\r",
+        "\n\r{:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {}\n\r",
         "EID", "PID", "SIZE", "EADDs", "RSS", "VA", "Command"
     )
     .unwrap();
