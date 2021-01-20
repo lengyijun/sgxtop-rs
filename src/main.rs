@@ -181,7 +181,7 @@ fn main() {
     )
     .unwrap();
 
-    let ev: Vec<Enclave> = read_sgx_enclave().expect("/proc/enclaves not found");
+    let ev: Vec<Enclave> = read_sgx_enclave().expect("/proc/sgx_enclaves not found");
     for e in ev {
         println!("{}", e);
     }
