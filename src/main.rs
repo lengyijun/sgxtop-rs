@@ -4,12 +4,11 @@ use std::io::{stdin, stdout, Write};
 use std::ops::Sub;
 use std::path::{Path, PathBuf};
 
-use ansi_term::Colour;
-
 use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 use termion::screen::*;
+use termion::{color, style};
 
 #[derive(Debug, Clone, Copy)]
 struct Memory(u64);
@@ -106,10 +105,6 @@ fn main() {
     let mut screen = AlternateScreen::from(stdout().into_raw_mode().unwrap());
     write!(screen, "{}", termion::cursor::Hide).unwrap();
 
-    //text: black
-    //backgroud: white
-    //let style = Colour::Black.on(Colour::White);
-
     write!(
         screen,
         "{}{}",
@@ -180,8 +175,8 @@ fn main() {
 
     write!(
         screen,
-        "\n\r{:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {}\n\r",
-        "EID", "PID", "SIZE", "EADDs", "RSS", "VA", "Command"
+        "\n\r{}{}{:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {}{}\n\r",
+        color::Fg(color::Black),color::Bg(color::White),"EID", "PID", "SIZE", "EADDs", "RSS", "VA", "Command",style::Reset
     )
     .unwrap();
 
