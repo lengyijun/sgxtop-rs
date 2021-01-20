@@ -102,16 +102,53 @@ fn main() {
     let style = Colour::Black.on(Colour::White);
     write!(
         screen,
-        "{}{}{:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {}\n\r",
+        "{}{}",
         termion::clear::All,
         termion::cursor::Goto(1, 1),
-        "EID",
-        "PID",
-        "SIZE",
-        "EADDs",
-        "RSS",
-        "VA",
-        "Command"
+    );
+    {
+        let f = fs::read("/proc/sgx_stats").expect("/proc/sgx_stats not found");
+        let mut iter = f
+            .split(|x| x == &32) //split with space
+            .map(|x| String::from_utf8(x.to_vec()).unwrap())
+            .map(|x| x.parse::<u32>().unwrap());
+        sgx_encl_created = iter.next().unwrap();
+        sgx_encl_released = iter.next().unwrap();
+        let sgx_pages_alloced_new = iter.next().unwrap();
+        let sgx_pages_freed_new = iter.next().unwrap();
+        sgx_nr_total_epc_pages = iter.next().unwrap();
+        sgx_va_pages_cnt = iter.next().unwrap();
+        sgx_nr_free_pages = iter.next().unwrap();
+
+        let add_page_speed = {
+            match sgx_pages_alloced {
+                None => 0,
+                Some(old) => sgx_pages_alloced_new - old,
+            }
+        };
+
+        let free_page_speed = {
+            match sgx_pages_freed {
+                None => 0,
+                Some(old) => sgx_pages_freed_new - old,
+            }
+        };
+        sgx_pages_alloced = Some(sgx_pages_alloced_new);
+        sgx_pages_freed = Some(sgx_pages_freed_new);
+
+        //todo
+        write!(
+            screen,
+            "{:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {}\n\r",
+            "EID", "PID", "SIZE", "EADDs", "RSS", "VA", "Command"
+        );
+    }
+
+    write!(
+        screen,
+        "Enclaves running:    {:>8}, Total enclaves created: {:>8} \n\r",
+        sgx_encl_created,
+        sgx_encl_released
     )
     .unwrap();
 
