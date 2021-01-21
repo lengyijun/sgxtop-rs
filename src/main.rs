@@ -65,6 +65,7 @@ impl Sub for Memory {
     }
 }
 
+// VIRT > EADDs > RSS
 #[derive(Debug)]
 struct Enclave {
     PID: u64,
