@@ -23,23 +23,23 @@ const SGX_ENCL_DEAD: u64 = 1 << 4;
 struct EnclaveState(u64);
 impl Display for EnclaveState {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
-        let mut v=vec![];
-        if (self.0 & SGX_ENCL_INITIALIZED) >0{
+        let mut v = vec![];
+        if (self.0 & SGX_ENCL_INITIALIZED) > 0 {
             v.push("INIT");
         }
-        if (self.0 & SGX_ENCL_DEBUG) >0{
+        if (self.0 & SGX_ENCL_DEBUG) > 0 {
             v.push("DEBUG");
         }
-        if (self.0 & SGX_ENCL_SECS_EVICTED) >0{
+        if (self.0 & SGX_ENCL_SECS_EVICTED) > 0 {
             v.push("EVICT");
         }
-        if (self.0 & SGX_ENCL_SUSPEND) >0{
+        if (self.0 & SGX_ENCL_SUSPEND) > 0 {
             v.push("SUS");
         }
-        if (self.0 & SGX_ENCL_DEAD) >0{
+        if (self.0 & SGX_ENCL_DEAD) > 0 {
             v.push("DEAD");
         }
-        let joined=v.join(",");
+        let joined = v.join(",");
         write!(f, "{:>10}", joined)
     }
 }
@@ -73,7 +73,7 @@ struct Enclave {
     EADDs: Memory,
     RSS: Memory,
     VA: Memory,
-    state: EnclaveState
+    state: EnclaveState,
 }
 
 impl Display for Enclave {
@@ -122,8 +122,8 @@ impl GlobalStats {
             sgx_nr_total_epc_pages: Memory(0), //will not changed later
             sgx_va_pages_cnt: Memory(0),
             sgx_nr_free_pages: Memory(0),
-            sgx_ewb_cnt:None,
-            sgx_eldu_cnt:None,
+            sgx_ewb_cnt: None,
+            sgx_eldu_cnt: None,
             screen: AlternateScreen::from(stdout().into_raw_mode().unwrap()),
         }
     }
@@ -159,8 +159,8 @@ impl GlobalStats {
         self.sgx_nr_total_epc_pages = Memory(iter.next().unwrap() << 2);
         self.sgx_va_pages_cnt = Memory(iter.next().unwrap() << 2);
         self.sgx_nr_free_pages = Memory(iter.next().unwrap() << 2);
-        let sgx_ewb_cnt_new=Memory(iter.next().unwrap()<<2);
-        let sgx_eldu_cnt_new=Memory(iter.next().unwrap()<<2);
+        let sgx_ewb_cnt_new = Memory(iter.next().unwrap() << 2);
+        let sgx_eldu_cnt_new = Memory(iter.next().unwrap() << 2);
 
         let eadd_speed = {
             match self.sgx_pages_alloced {
@@ -176,24 +176,24 @@ impl GlobalStats {
             }
         };
 
-        let ewb_speed ={
-            match self.sgx_ewb_cnt{
-                None=>Memory(0),
-                Some(old)=>sgx_ewb_cnt_new-old
+        let ewb_speed = {
+            match self.sgx_ewb_cnt {
+                None => Memory(0),
+                Some(old) => sgx_ewb_cnt_new - old,
             }
         };
 
-        let eldu_speed={
-            match self.sgx_eldu_cnt{
-                None=>Memory(0),
-                Some(old)=>sgx_eldu_cnt_new-old
+        let eldu_speed = {
+            match self.sgx_eldu_cnt {
+                None => Memory(0),
+                Some(old) => sgx_eldu_cnt_new - old,
             }
         };
 
         self.sgx_pages_alloced = Some(sgx_pages_alloced_new);
         self.sgx_pages_freed = Some(sgx_pages_freed_new);
-        self.sgx_ewb_cnt=Some(sgx_ewb_cnt_new);
-        self.sgx_eldu_cnt=Some(sgx_eldu_cnt_new);
+        self.sgx_ewb_cnt = Some(sgx_ewb_cnt_new);
+        self.sgx_eldu_cnt = Some(sgx_eldu_cnt_new);
 
         write!(
             self.screen,
@@ -208,7 +208,12 @@ impl GlobalStats {
             eadd_speed, eremove_speed
         )
         .unwrap();
-        write!(self.screen, "ewb {:>8}/s, eldu {:>8}/s \n\r", ewb_speed, eldu_speed).unwrap();
+        write!(
+            self.screen,
+            "ewb {:>8}/s, eldu {:>8}/s \n\r",
+            ewb_speed, eldu_speed
+        )
+        .unwrap();
         write!(
             self.screen,
             "EPC mem: {:>8} total, {:>8} free, {:>8} used, {:>8} VA\n\r",
@@ -218,6 +223,11 @@ impl GlobalStats {
             self.sgx_va_pages_cnt,
         )
         .unwrap();
+        let swap_size = match self.sgx_ewb_cnt {
+            None => Memory(0),
+            Some(_) => self.sgx_ewb_cnt.unwrap() - self.sgx_eldu_cnt.unwrap(),
+        };
+        write!(self.screen, "Swap: {:>8}", swap_size).unwrap();
 
         write!(
             self.screen,
