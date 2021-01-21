@@ -229,6 +229,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                     g.reset();
                     break;
                 }
+                Key::Ctrl('c') => {
+                    g.reset();
+                    break;
+                }
                 _ => {}
             },
             Event::Tick => {
