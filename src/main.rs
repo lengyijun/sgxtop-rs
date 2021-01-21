@@ -69,7 +69,7 @@ impl Sub for Memory {
 struct Enclave {
     PID: u64,
     EID: u64,
-    SIZE: Memory,
+    VIRT: Memory,
     EADDs: Memory,
     RSS: Memory,
     VA: Memory,
@@ -94,7 +94,7 @@ impl Display for Enclave {
         write!(
             f,
             "{:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {:>10} {}\n\r",
-            self.EID, self.PID, self.SIZE, self.EADDs, self.RSS, self.VA, self.state, command
+            self.EID, self.PID, self.VIRT, self.EADDs, self.RSS, self.VA, self.state, command
         )
     }
 }
@@ -226,7 +226,7 @@ impl GlobalStats {
             color::Bg(color::White),
             "EID",
             "PID",
-            "SIZE",
+            "VIRT",
             "EADDs",
             "RSS",
             "VA",
@@ -260,7 +260,7 @@ fn read_sgx_enclave() -> Result<Vec<Enclave>, std::io::Error> {
             Enclave {
                 PID: v[0],
                 EID: v[1],
-                SIZE: Memory(v[2] >> 10),
+                VIRT: Memory(v[2] >> 10),
                 EADDs: Memory(v[3] << 2),
                 RSS: Memory(v[4] << 2),
                 VA: Memory(v[5] << 2),
