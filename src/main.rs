@@ -227,7 +227,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             Event::Input(input) => match input {
                 Key::Char('q') => {
                     g.reset();
-                    std::process::exit(0);
+                    break;
                 }
                 _ => {}
             },
