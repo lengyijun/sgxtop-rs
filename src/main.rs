@@ -107,6 +107,8 @@ struct GlobalStats {
     sgx_nr_total_epc_pages: Memory, //will not changed later
     sgx_va_pages_cnt: Memory,
     sgx_nr_free_pages: Memory,
+    sgx_ewb_cnt: Option<Memory>,
+    sgx_eldu_cnt: Option<Memory>,
     screen: termion::screen::AlternateScreen<RawTerminal<std::io::Stdout>>,
 }
 
@@ -120,6 +122,8 @@ impl GlobalStats {
             sgx_nr_total_epc_pages: Memory(0), //will not changed later
             sgx_va_pages_cnt: Memory(0),
             sgx_nr_free_pages: Memory(0),
+            sgx_ewb_cnt:None,
+            sgx_eldu_cnt:None,
             screen: AlternateScreen::from(stdout().into_raw_mode().unwrap()),
         }
     }
@@ -142,7 +146,7 @@ impl GlobalStats {
         let f = fs::read("/proc/sgx_stats").expect("/proc/sgx_stats not found");
         let mut iter = f
             .split(|x| x == &32 || x == &10 || x == &13) //split with space
-            .take(7)
+            .take(9)
             .map(|x| {
                 x.iter()
                     .fold(0 as u64, |acc, x| acc * 10 + ((x - 48) as u64))
@@ -155,6 +159,8 @@ impl GlobalStats {
         self.sgx_nr_total_epc_pages = Memory(iter.next().unwrap() << 2);
         self.sgx_va_pages_cnt = Memory(iter.next().unwrap() << 2);
         self.sgx_nr_free_pages = Memory(iter.next().unwrap() << 2);
+        let sgx_ewb_cnt_new=Memory(iter.next().unwrap()<<2);
+        let sgx_eldu_cnt_new=Memory(iter.next().unwrap()<<2);
 
         let eadd_speed = {
             match self.sgx_pages_alloced {
@@ -170,8 +176,24 @@ impl GlobalStats {
             }
         };
 
+        let ewb_speed ={
+            match self.sgx_ewb_cnt{
+                None=>Memory(0),
+                Some(old)=>sgx_ewb_cnt_new-old
+            }
+        };
+
+        let eldu_speed={
+            match self.sgx_eldu_cnt{
+                None=>Memory(0),
+                Some(old)=>sgx_eldu_cnt_new-old
+            }
+        };
+
         self.sgx_pages_alloced = Some(sgx_pages_alloced_new);
         self.sgx_pages_freed = Some(sgx_pages_freed_new);
+        self.sgx_ewb_cnt=Some(sgx_ewb_cnt_new);
+        self.sgx_eldu_cnt=Some(sgx_eldu_cnt_new);
 
         write!(
             self.screen,
@@ -186,7 +208,7 @@ impl GlobalStats {
             eadd_speed, eremove_speed
         )
         .unwrap();
-        write!(self.screen, "ewb {:>8}/s, eldu {:>8}/s \n\r", 0, 0).unwrap();
+        write!(self.screen, "ewb {:>8}/s, eldu {:>8}/s \n\r", ewb_speed, eldu_speed).unwrap();
         write!(
             self.screen,
             "EPC mem: {:>8} total, {:>8} free, {:>8} used, {:>8} VA\n\r",
