@@ -1,19 +1,22 @@
-use std::fmt::{Display, Error, Formatter};
+mod event;
+use event::{Event, Events};
+
+use std::error::Error;
+use std::fmt::{Display, Formatter};
 use std::fs;
 use std::io::{stdin, stdout, Write};
 use std::ops::Sub;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use termion::event::Key;
-use termion::input::TermRead;
-use termion::raw::IntoRawMode;
+use termion::raw::{IntoRawMode, RawTerminal};
 use termion::screen::*;
 use termion::{color, style};
 
 #[derive(Debug, Clone, Copy)]
 struct Memory(u64);
 impl Display for Memory {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
         if self.0 >= 1024 {
             let x: u64 = self.0 / 1024;
             write!(f, "{:>7}M", x)
@@ -43,7 +46,7 @@ struct Enclave {
 }
 
 impl Display for Enclave {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
         // "/proc/54142/cmdline"
         let mut path = PathBuf::from("/proc");
         path.push(self.PID.to_string());
@@ -62,6 +65,128 @@ impl Display for Enclave {
             "{:>8} {:>8} {:>8} {:>8} {:>8} {:>8}  {}\n\r",
             self.EID, self.PID, self.SIZE, self.EADDs, self.RSS, self.VA, command
         )
+    }
+}
+
+struct GlobalStats {
+    sgx_encl_created: u64,
+    sgx_encl_released: u64,
+    sgx_pages_alloced: Option<Memory>,
+    sgx_pages_freed: Option<Memory>,
+    sgx_nr_total_epc_pages: Memory, //will not changed later
+    sgx_va_pages_cnt: Memory,
+    sgx_nr_free_pages: Memory,
+    screen: termion::screen::AlternateScreen<RawTerminal<std::io::Stdout>>,
+}
+
+impl GlobalStats {
+    fn new() -> Self {
+        GlobalStats {
+            sgx_encl_created: 0,
+            sgx_encl_released: 0,
+            sgx_pages_alloced: None,
+            sgx_pages_freed: None,
+            sgx_nr_total_epc_pages: Memory(0), //will not changed later
+            sgx_va_pages_cnt: Memory(0),
+            sgx_nr_free_pages: Memory(0),
+            screen: AlternateScreen::from(stdout().into_raw_mode().unwrap()),
+        }
+    }
+
+    fn reset(&mut self) {
+        write!(self.screen, "{}", termion::cursor::Show).unwrap();
+        self.screen.flush().unwrap();
+    }
+
+    fn draw(&mut self) {
+        write!(self.screen, "{}", termion::cursor::Hide).unwrap();
+        write!(
+            self.screen,
+            "{}{}",
+            termion::clear::All,
+            termion::cursor::Goto(1, 1),
+        )
+        .unwrap();
+
+        let f = fs::read("/proc/sgx_stats").expect("/proc/sgx_stats not found");
+        let mut iter = f
+            .split(|x| x == &32 || x == &10 || x == &13) //split with space
+            .take(7)
+            .map(|x| {
+                x.iter()
+                    .fold(0 as u64, |acc, x| acc * 10 + ((x - 48) as u64))
+            });
+
+        self.sgx_encl_created = iter.next().unwrap();
+        self.sgx_encl_released = iter.next().unwrap();
+        let sgx_pages_alloced_new = Memory(iter.next().unwrap() << 2);
+        let sgx_pages_freed_new = Memory(iter.next().unwrap() << 2);
+        self.sgx_nr_total_epc_pages = Memory(iter.next().unwrap() << 2);
+        self.sgx_va_pages_cnt = Memory(iter.next().unwrap() << 2);
+        self.sgx_nr_free_pages = Memory(iter.next().unwrap() << 2);
+
+        let eadd_speed = {
+            match self.sgx_pages_alloced {
+                None => Memory(0),
+                Some(old) => sgx_pages_alloced_new - old,
+            }
+        };
+
+        let eremove_speed = {
+            match self.sgx_pages_freed {
+                None => Memory(0),
+                Some(old) => sgx_pages_freed_new - old,
+            }
+        };
+
+        self.sgx_pages_alloced = Some(sgx_pages_alloced_new);
+        self.sgx_pages_freed = Some(sgx_pages_freed_new);
+
+        write!(
+            self.screen,
+            "{} enclaves running, Total {} enclaves created\n\r",
+            self.sgx_encl_created - self.sgx_encl_released,
+            self.sgx_encl_released
+        )
+        .unwrap();
+        write!(
+            self.screen,
+            "eadd {:>8}/s, eremove {:>8}/s \n\r",
+            eadd_speed, eremove_speed
+        )
+        .unwrap();
+        write!(self.screen, "ewb {:>8}/s, eldu {:>8}/s \n\r", 0, 0).unwrap();
+        write!(
+            self.screen,
+            "EPC mem: {:>8} total, {:>8} free, {:>8} used, {:>8} VA\n\r",
+            self.sgx_nr_total_epc_pages,
+            self.sgx_nr_free_pages,
+            self.sgx_nr_total_epc_pages - self.sgx_nr_free_pages,
+            self.sgx_va_pages_cnt,
+        )
+        .unwrap();
+
+        write!(
+            self.screen,
+            "\n\r{}{}{:>8} {:>8} {:>8} {:>8} {:>8} {:>8}  {}{}\n\r",
+            color::Fg(color::Black),
+            color::Bg(color::White),
+            "EID",
+            "PID",
+            "SIZE",
+            "EADDs",
+            "RSS",
+            "VA",
+            "Command",
+            style::Reset
+        )
+        .unwrap();
+
+        let ev: Vec<Enclave> = read_sgx_enclave().expect("/proc/sgx_enclaves not found");
+        for e in ev {
+            write!(self.screen, "{}", e).unwrap()
+        }
+        self.screen.flush().unwrap();
     }
 }
 
@@ -92,115 +217,25 @@ fn read_sgx_enclave() -> Result<Vec<Enclave>, std::io::Error> {
     Ok(x)
 }
 
-fn main() {
-    let mut sgx_encl_created: u64;
-    let mut sgx_encl_released: u64;
-    let mut sgx_pages_alloced: Option<Memory> = None;
-    let mut sgx_pages_freed: Option<Memory> = None;
-    let mut sgx_nr_total_epc_pages: Memory; //will not changed later
-    let mut sgx_va_pages_cnt: Memory;
-    let mut sgx_nr_free_pages: Memory;
+fn main() -> Result<(), Box<dyn Error>> {
+    let events = Events::new();
+    let mut g = GlobalStats::new();
+    g.draw();
 
-    let mut screen = AlternateScreen::from(stdout().into_raw_mode().unwrap());
-    write!(screen, "{}", termion::cursor::Hide).unwrap();
-
-    write!(
-        screen,
-        "{}{}",
-        termion::clear::All,
-        termion::cursor::Goto(1, 1),
-    )
-    .unwrap();
-
-    {
-        let f = fs::read("/proc/sgx_stats").expect("/proc/sgx_stats not found");
-        let mut iter = f
-            .split(|x| x == &32 || x == &10 || x == &13) //split with space
-            .take(7)
-            .map(|x| {
-                x.iter()
-                    .fold(0 as u64, |acc, x| acc * 10 + ((x - 48) as u64))
-            });
-
-        sgx_encl_created = iter.next().unwrap();
-        sgx_encl_released = iter.next().unwrap();
-        let sgx_pages_alloced_new = Memory(iter.next().unwrap() << 2);
-        let sgx_pages_freed_new = Memory(iter.next().unwrap() << 2);
-        sgx_nr_total_epc_pages = Memory(iter.next().unwrap() << 2);
-        sgx_va_pages_cnt = Memory(iter.next().unwrap() << 2);
-        sgx_nr_free_pages = Memory(iter.next().unwrap() << 2);
-
-        let eadd_speed = {
-            match sgx_pages_alloced {
-                None => Memory(0),
-                Some(old) => sgx_pages_alloced_new - old,
+    loop {
+        match events.next()? {
+            Event::Input(input) => match input {
+                Key::Char('q') => {
+                    g.reset();
+                    std::process::exit(0);
+                }
+                _ => {}
+            },
+            Event::Tick => {
+                g.draw();
             }
-        };
-
-        let eremove_speed = {
-            match sgx_pages_freed {
-                None => Memory(0),
-                Some(old) => sgx_pages_freed_new - old,
-            }
-        };
-
-        sgx_pages_alloced = Some(sgx_pages_alloced_new);
-        sgx_pages_freed = Some(sgx_pages_freed_new);
-
-        write!(
-            screen,
-            "{} enclaves running, Total {} enclaves created\n\r",
-            sgx_encl_created - sgx_encl_released,
-            sgx_encl_released
-        )
-        .unwrap();
-        write!(
-            screen,
-            "eadd {:>8}/s, eremove {:>8}/s \n\r",
-            eadd_speed, eremove_speed
-        )
-        .unwrap();
-        write!(screen, "ewb {:>8}/s, eldu {:>8}/s \n\r", 0, 0).unwrap();
-        write!(
-            screen,
-            "EPC mem: {:>8} total, {:>8} free, {:>8} used, {:>8} VA\n\r",
-            sgx_nr_total_epc_pages,
-            sgx_nr_free_pages,
-            sgx_nr_total_epc_pages - sgx_nr_free_pages,
-            sgx_va_pages_cnt,
-        )
-        .unwrap();
-    }
-
-    write!(
-        screen,
-        "\n\r{}{}{:>8} {:>8} {:>8} {:>8} {:>8} {:>8}  {}{}\n\r",
-        color::Fg(color::Black),
-        color::Bg(color::White),
-        "EID",
-        "PID",
-        "SIZE",
-        "EADDs",
-        "RSS",
-        "VA",
-        "Command",
-        style::Reset
-    )
-    .unwrap();
-
-    let ev: Vec<Enclave> = read_sgx_enclave().expect("/proc/sgx_enclaves not found");
-    for e in ev {
-        write!(screen, "{}", e).unwrap()
-    }
-    screen.flush().unwrap();
-
-    let stdin = stdin();
-    for c in stdin.keys() {
-        match c.unwrap() {
-            Key::Char('q') => break,
-            _ => {}
         }
-        screen.flush().unwrap();
     }
-    write!(screen, "{}", termion::cursor::Show).unwrap();
+
+    Ok(())
 }
