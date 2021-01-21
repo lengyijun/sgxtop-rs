@@ -13,6 +13,37 @@ use termion::raw::{IntoRawMode, RawTerminal};
 use termion::screen::*;
 use termion::{color, style};
 
+const SGX_ENCL_INITIALIZED: u64 = 1 << 0;
+const SGX_ENCL_DEBUG: u64 = 1 << 1;
+const SGX_ENCL_SECS_EVICTED: u64 = 1 << 2;
+const SGX_ENCL_SUSPEND: u64 = 1 << 3;
+const SGX_ENCL_DEAD: u64 = 1 << 4;
+
+#[derive(Debug)]
+struct EnclaveState(u64);
+impl Display for EnclaveState {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        let mut v=vec![];
+        if (self.0 & SGX_ENCL_INITIALIZED) >0{
+            v.push("INIT");
+        }
+        if (self.0 & SGX_ENCL_DEBUG) >0{
+            v.push("DEBUG");
+        }
+        if (self.0 & SGX_ENCL_SECS_EVICTED) >0{
+            v.push("EVICT");
+        }
+        if (self.0 & SGX_ENCL_SUSPEND) >0{
+            v.push("SUS");
+        }
+        if (self.0 & SGX_ENCL_DEAD) >0{
+            v.push("DEAD");
+        }
+        let joined=v.join(",");
+        write!(f, "{:>10}", joined)
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 struct Memory(u64);
 impl Display for Memory {
@@ -42,7 +73,7 @@ struct Enclave {
     EADDs: Memory,
     RSS: Memory,
     VA: Memory,
-    //startTime
+    state: EnclaveState
 }
 
 impl Display for Enclave {
@@ -62,8 +93,8 @@ impl Display for Enclave {
 
         write!(
             f,
-            "{:>8} {:>8} {:>8} {:>8} {:>8} {:>8}  {}\n\r",
-            self.EID, self.PID, self.SIZE, self.EADDs, self.RSS, self.VA, command
+            "{:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {:>10} {}\n\r",
+            self.EID, self.PID, self.SIZE, self.EADDs, self.RSS, self.VA, self.state, command
         )
     }
 }
@@ -168,7 +199,7 @@ impl GlobalStats {
 
         write!(
             self.screen,
-            "\n\r{}{}{:>8} {:>8} {:>8} {:>8} {:>8} {:>8}  {}{}\n\r",
+            "\n\r{}{}{:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {:>10} {}{}\n\r",
             color::Fg(color::Black),
             color::Bg(color::White),
             "EID",
@@ -177,6 +208,7 @@ impl GlobalStats {
             "EADDs",
             "RSS",
             "VA",
+            "state",
             "Command",
             style::Reset
         )
@@ -200,7 +232,7 @@ fn read_sgx_enclave() -> Result<Vec<Enclave>, std::io::Error> {
         .map(|line| {
             let v: Vec<u64> = line
                 .split(|x| x == &32 || x == &10 || x == &13)
-                .take(6)
+                .take(7)
                 .map(|x| x.iter().fold(0 as u64, |acc, x| acc * 10 + (x - 48) as u64))
                 .collect();
             Enclave {
@@ -210,6 +242,7 @@ fn read_sgx_enclave() -> Result<Vec<Enclave>, std::io::Error> {
                 EADDs: Memory(v[3] << 2),
                 RSS: Memory(v[4] << 2),
                 VA: Memory(v[5] << 2),
+                state: EnclaveState(v[6]),
                 //startTime
             }
         })
