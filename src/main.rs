@@ -280,19 +280,18 @@ fn read_sgx_enclave() -> Result<Vec<Enclave>, std::io::Error> {
         .split(|x| x == &10 || x == &13)
         .filter(|line| line.len() != 0)
         .map(|line| {
-            let v: Vec<u64> = line
+            let mut iter = line
                 .split(|x| x == &32 || x == &10 || x == &13)
-                .map(|x| x.iter().fold(0 as u64, |acc, x| acc * 10 + (x - 48) as u64))
-                .collect();
+                .map(|x| x.iter().fold(0 as u64, |acc, x| acc * 10 + (x - 48) as u64));
             Enclave {
-                PID: v[0],
-                EID: v[1],
-                VIRT: Memory(v[2] >> 10),
-                EADDs: Memory(v[3] << 2),
-                RSS: Memory(v[4] << 2),
-                VA: Memory(v[5] << 2),
-                state: EnclaveState(v[6]),
-                swap: Memory(v[7] << 2),
+                PID: iter.next().unwrap(),
+                EID: iter.next().unwrap(),
+                VIRT: Memory(iter.next().unwrap() >> 10),
+                EADDs: Memory(iter.next().unwrap() << 2),
+                RSS: Memory(iter.next().unwrap() << 2),
+                VA: Memory(iter.next().unwrap() << 2),
+                state: EnclaveState(iter.next().unwrap()),
+                swap: Memory(iter.next().unwrap() << 2),
                 //startTime
             }
         })
