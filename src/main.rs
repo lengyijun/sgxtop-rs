@@ -53,6 +53,7 @@ impl Display for EnclaveState {
     }
 }
 
+/// An abstract for memory for the sake of easy to print
 #[derive(Debug, Clone, Copy)]
 struct Memory(u64);
 impl Display for Memory {
