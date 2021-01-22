@@ -19,6 +19,15 @@ const SGX_ENCL_SECS_EVICTED: u64 = 1 << 2;
 const SGX_ENCL_SUSPEND: u64 = 1 << 3;
 const SGX_ENCL_DEAD: u64 = 1 << 4;
 
+/// INIT:  SGX_ENCL_INITIALIZED
+///
+/// DEBUG: SGX_ENCL_DEBUG
+///
+/// EVICE: SGX_ENCL_SECS_EVICTED
+///
+/// SUS:   SGX_ENCL_SUSPEND
+///
+/// DEAD:  SGX_ENCL_DEAD
 #[derive(Debug)]
 struct EnclaveState(u64);
 impl Display for EnclaveState {
@@ -65,15 +74,34 @@ impl Sub for Memory {
     }
 }
 
-// VIRT > EADDs > RSS
+/// VIRT > EADDs > RSS
 #[derive(Debug)]
 struct Enclave {
-    PID: u64,
-    EID: u64,
-    VIRT: Memory,
-    EADDs: Memory,
-    RSS: Memory,
-    VA: Memory,
+    /// the coresponding process id
+    pid: u64,    
+
+    /// global enclave unique id
+    eid: u64,
+
+    ///  the size of enclave in `vm_area_struct`, part of process virtual address area
+    ///  
+    ///  virt will never be reached
+    virt: Memory,
+
+    /// eadd counts
+    eadds: Memory,
+
+    /// actually occupied EPC pages
+    rss: Memory,
+
+    /// version array pages allocate for this enclave
+    ///
+    /// they may either in EPC or DRAM
+    ///
+    /// they are already counted in EADDS
+    va: Memory,
+
+    /// memory swaped to DRAM. It may be swaped back to EPC later
     swap: Memory,
     state: EnclaveState,
 }
@@ -82,7 +110,7 @@ impl Display for Enclave {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
         // "/proc/54142/cmdline"
         let mut path = PathBuf::from("/proc");
-        path.push(self.PID.to_string());
+        path.push(self.pid.to_string());
         path.push("cmdline");
 
         let command: String = match fs::read(path.as_path()) {
@@ -96,13 +124,13 @@ impl Display for Enclave {
         write!(
             f,
             "{:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {:>10} {}\n\r",
-            self.EID,
-            self.PID,
-            self.VIRT,
-            self.EADDs,
-            self.RSS,
+            self.eid,
+            self.pid,
+            self.virt,
+            self.eadds,
+            self.rss,
             self.swap,
-            self.VA,
+            self.va,
             self.state,
             command
         )
@@ -114,11 +142,23 @@ struct GlobalStats {
     sgx_encl_released: u64,
     sgx_pages_alloced: Option<Memory>,
     sgx_pages_freed: Option<Memory>,
-    sgx_nr_total_epc_pages: Memory, //will not changed later
+
+    /// Decide by your bios configuration, for example:32M, 64M and 128M
+    ///
+    /// always smaller than 32M, 64M and 128M.
+    ///
+    /// This variable is a constant.
+    sgx_nr_total_epc_pages: Memory, 
     sgx_va_pages_cnt: Memory,
     sgx_nr_free_pages: Memory,
     sgx_ewb_cnt: Option<Memory>,
     sgx_eldu_cnt: Option<Memory>,
+
+    /// When enclave is released, all its pages will be free.
+    ///
+    /// Some pages are inside EPC, others in DRAM.
+    ///
+    /// This variable will track all pages in DRAM, freed when a enclave is released.
     sgx_freed_backing_pages: Memory,
     screen: termion::screen::AlternateScreen<RawTerminal<std::io::Stdout>>,
 }
@@ -284,12 +324,12 @@ fn read_sgx_enclave() -> Result<Vec<Enclave>, std::io::Error> {
                 .split(|x| x == &32 || x == &10 || x == &13)
                 .map(|x| x.iter().fold(0 as u64, |acc, x| acc * 10 + (x - 48) as u64));
             Enclave {
-                PID: iter.next().unwrap(),
-                EID: iter.next().unwrap(),
-                VIRT: Memory(iter.next().unwrap() >> 10),
-                EADDs: Memory(iter.next().unwrap() << 2),
-                RSS: Memory(iter.next().unwrap() << 2),
-                VA: Memory(iter.next().unwrap() << 2),
+                pid: iter.next().unwrap(),
+                eid: iter.next().unwrap(),
+                virt: Memory(iter.next().unwrap() >> 10),
+                eadds: Memory(iter.next().unwrap() << 2),
+                rss: Memory(iter.next().unwrap() << 2),
+                va: Memory(iter.next().unwrap() << 2),
                 state: EnclaveState(iter.next().unwrap()),
                 swap: Memory(iter.next().unwrap() << 2),
                 //startTime
