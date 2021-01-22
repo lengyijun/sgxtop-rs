@@ -74,6 +74,7 @@ struct Enclave {
     EADDs: Memory,
     RSS: Memory,
     VA: Memory,
+    swap: Memory,
     state: EnclaveState,
 }
 
@@ -94,8 +95,16 @@ impl Display for Enclave {
 
         write!(
             f,
-            "{:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {:>10} {}\n\r",
-            self.EID, self.PID, self.VIRT, self.EADDs, self.RSS, self.VA, self.state, command
+            "{:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {:>10} {}\n\r",
+            self.EID,
+            self.PID,
+            self.VIRT,
+            self.EADDs,
+            self.RSS,
+            self.swap,
+            self.VA,
+            self.state,
+            command
         )
     }
 }
@@ -110,6 +119,7 @@ struct GlobalStats {
     sgx_nr_free_pages: Memory,
     sgx_ewb_cnt: Option<Memory>,
     sgx_eldu_cnt: Option<Memory>,
+    sgx_freed_backing_pages: Memory,
     screen: termion::screen::AlternateScreen<RawTerminal<std::io::Stdout>>,
 }
 
@@ -125,6 +135,7 @@ impl GlobalStats {
             sgx_nr_free_pages: Memory(0),
             sgx_ewb_cnt: None,
             sgx_eldu_cnt: None,
+            sgx_freed_backing_pages: Memory(0),
             screen: AlternateScreen::from(stdout().into_raw_mode().unwrap()),
         }
     }
@@ -147,7 +158,6 @@ impl GlobalStats {
         let f = fs::read("/proc/sgx_stats").expect("/proc/sgx_stats not found");
         let mut iter = f
             .split(|x| x == &32 || x == &10 || x == &13) //split with space
-            .take(9)
             .map(|x| {
                 x.iter()
                     .fold(0 as u64, |acc, x| acc * 10 + ((x - 48) as u64))
@@ -162,6 +172,7 @@ impl GlobalStats {
         self.sgx_nr_free_pages = Memory(iter.next().unwrap() << 2);
         let sgx_ewb_cnt_new = Memory(iter.next().unwrap() << 2);
         let sgx_eldu_cnt_new = Memory(iter.next().unwrap() << 2);
+        self.sgx_freed_backing_pages = Memory(iter.next().unwrap() << 2);
 
         let eadd_speed = {
             match self.sgx_pages_alloced {
@@ -198,9 +209,9 @@ impl GlobalStats {
 
         write!(
             self.screen,
-            "{} enclaves running, Total {} enclaves created\n\r",
+            "{} enclaves running, total {} enclaves created\n\r",
             self.sgx_encl_created - self.sgx_encl_released,
-            self.sgx_encl_released
+            self.sgx_encl_created
         )
         .unwrap();
         write!(
@@ -224,15 +235,20 @@ impl GlobalStats {
             self.sgx_va_pages_cnt,
         )
         .unwrap();
+
         let swap_size = match self.sgx_ewb_cnt {
             None => Memory(0),
-            Some(_) => self.sgx_ewb_cnt.unwrap() - self.sgx_eldu_cnt.unwrap(),
+            Some(_) => {
+                self.sgx_ewb_cnt.unwrap()
+                    - self.sgx_eldu_cnt.unwrap()
+                    - self.sgx_freed_backing_pages
+            }
         };
-        write!(self.screen, "Swap: {:>8}", swap_size).unwrap();
+        write!(self.screen, "Swap: {:>8}\n\r", swap_size).unwrap();
 
         write!(
             self.screen,
-            "\n\r{}{}{:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {:>10} {}{}\n\r",
+            "\n\r{}{}{:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {:>10} {}{}\n\r",
             color::Fg(color::Black),
             color::Bg(color::White),
             "EID",
@@ -240,6 +256,7 @@ impl GlobalStats {
             "VIRT",
             "EADDs",
             "RSS",
+            "SWAP",
             "VA",
             "state",
             "Command",
@@ -265,7 +282,6 @@ fn read_sgx_enclave() -> Result<Vec<Enclave>, std::io::Error> {
         .map(|line| {
             let v: Vec<u64> = line
                 .split(|x| x == &32 || x == &10 || x == &13)
-                .take(7)
                 .map(|x| x.iter().fold(0 as u64, |acc, x| acc * 10 + (x - 48) as u64))
                 .collect();
             Enclave {
@@ -276,6 +292,7 @@ fn read_sgx_enclave() -> Result<Vec<Enclave>, std::io::Error> {
                 RSS: Memory(v[4] << 2),
                 VA: Memory(v[5] << 2),
                 state: EnclaveState(v[6]),
+                swap: Memory(v[7] << 2),
                 //startTime
             }
         })
