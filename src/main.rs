@@ -1,10 +1,21 @@
+/*!
+ inspired by [sgxtop](https://github.com/fortanix/sgxtop)
+
+ To run sgxtop-rs, you need to install customized [linux-sgx-driver](https://github.com/lengyijun/linux-sgx-driver/tree/top)
+
+ This crate will read /proc/sgx_stats and /proc/sgx_enclaves
+ and print it every second.
+
+ It works similar to top and htop
+*/
+
 mod event;
 use event::{Event, Events};
 
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::fs;
-use std::io::{stdin, stdout, Write};
+use std::io::{stdout, Write};
 use std::ops::Sub;
 use std::path::PathBuf;
 
@@ -81,7 +92,7 @@ impl Sub for Memory {
 #[derive(Debug)]
 struct Enclave {
     /// the coresponding process id
-    pid: u64,    
+    pid: u64,
 
     /// global enclave unique id
     eid: u64,
@@ -151,7 +162,7 @@ struct GlobalStats {
     /// always smaller than 32M, 64M and 128M.
     ///
     /// This variable is a constant.
-    sgx_nr_total_epc_pages: Memory, 
+    sgx_nr_total_epc_pages: Memory,
     sgx_va_pages_cnt: Memory,
     sgx_nr_free_pages: Memory,
     sgx_ewb_cnt: Option<Memory>,
