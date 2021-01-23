@@ -357,7 +357,6 @@ fn read_sgx_enclave() -> Result<Vec<Enclave>, std::io::Error> {
                 state: EnclaveState(iter.next().unwrap()),
                 swap: Memory(iter.next().unwrap() << 2),
                 start_time: iter.next().unwrap(),
-                //startTime
             }
         })
         .collect();
