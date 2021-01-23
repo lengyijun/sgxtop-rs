@@ -1,7 +1,7 @@
 /*!
  This crate is a top-like real time performance for Intel SGX program,
  inspired by [sgxtop](https://github.com/fortanix/sgxtop)
- 
+
  To run sgxtop-rs, you need to install customized [linux-sgx-driver](https://github.com/lengyijun/linux-sgx-driver/tree/top),
  and origin linux-sgx sdk is enough.
 
@@ -118,7 +118,7 @@ struct Enclave {
     /// memory swaped to DRAM. It may be swaped back to EPC later
     swap: Memory,
     state: EnclaveState,
-    start_time:u64,
+    start_time: u64,
 }
 
 impl Display for Enclave {
@@ -138,7 +138,7 @@ impl Display for Enclave {
 
         write!(
             f,
-            "{:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {:>10} {:>7}s {}\n\r",
+            "{:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {:>10} {:>8} {}\n\r",
             self.eid,
             self.pid,
             self.virt,
@@ -147,7 +147,14 @@ impl Display for Enclave {
             self.swap,
             self.va,
             self.state,
-            SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs_f64().floor() as u64-self.start_time,
+            format_time(
+                SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs_f64()
+                    .floor() as u64
+                    - self.start_time
+            ),
             command
         )
     }
@@ -355,6 +362,29 @@ fn read_sgx_enclave() -> Result<Vec<Enclave>, std::io::Error> {
         })
         .collect();
     Ok(x)
+}
+
+fn format_time(mut duration: u64) -> String {
+    let mut has_hour = false;
+    let mut res: String = "".to_string();
+    if duration > 3600 {
+        res += &(duration / 3600).to_string();
+        res += "h";
+        has_hour = true;
+        duration %= 3600;
+    }
+    if duration > 60 {
+        res += &(duration / 60).to_string();
+        res += "m";
+        duration %= 60;
+    } else {
+        if has_hour {
+            res += "0m";
+        }
+    }
+    res += &duration.to_string();
+    res += "s";
+    res
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
