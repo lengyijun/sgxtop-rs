@@ -17,6 +17,7 @@ use std::fs;
 use std::io::{stdout, Write};
 use std::ops::Sub;
 use std::path::PathBuf;
+use std::time::SystemTime;
 
 use termion::event::Key;
 use termion::raw::{IntoRawMode, RawTerminal};
@@ -117,6 +118,7 @@ struct Enclave {
     /// memory swaped to DRAM. It may be swaped back to EPC later
     swap: Memory,
     state: EnclaveState,
+    start_time:u64,
 }
 
 impl Display for Enclave {
@@ -136,7 +138,7 @@ impl Display for Enclave {
 
         write!(
             f,
-            "{:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {:>10} {}\n\r",
+            "{:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {:>10} {:>7}s {}\n\r",
             self.eid,
             self.pid,
             self.virt,
@@ -145,6 +147,7 @@ impl Display for Enclave {
             self.swap,
             self.va,
             self.state,
+            SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs_f64().floor() as u64-self.start_time,
             command
         )
     }
@@ -301,7 +304,7 @@ impl GlobalStats {
 
         write!(
             self.screen,
-            "\n\r{}{}{:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {:>10} {}{}\n\r",
+            "\n\r{}{}{:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {:>10} {:>8} {}{}\n\r",
             color::Fg(color::Black),
             color::Bg(color::White),
             "EID",
@@ -312,6 +315,7 @@ impl GlobalStats {
             "SWAP",
             "VA",
             "state",
+            "time",
             "Command",
             style::Reset
         )
@@ -345,6 +349,7 @@ fn read_sgx_enclave() -> Result<Vec<Enclave>, std::io::Error> {
                 va: Memory(iter.next().unwrap() << 2),
                 state: EnclaveState(iter.next().unwrap()),
                 swap: Memory(iter.next().unwrap() << 2),
+                start_time: iter.next().unwrap(),
                 //startTime
             }
         })
