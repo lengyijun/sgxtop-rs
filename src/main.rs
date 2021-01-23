@@ -1,12 +1,11 @@
 /*!
+ This crate is a top-like real time performance for Intel SGX program,
  inspired by [sgxtop](https://github.com/fortanix/sgxtop)
+ 
+ To run sgxtop-rs, you need to install customized [linux-sgx-driver](https://github.com/lengyijun/linux-sgx-driver/tree/top),
+ and origin linux-sgx sdk is enough.
 
- To run sgxtop-rs, you need to install customized [linux-sgx-driver](https://github.com/lengyijun/linux-sgx-driver/tree/top)
-
- This crate will read /proc/sgx_stats and /proc/sgx_enclaves
- and print it every second.
-
- It works similar to top and htop
+ This crate will read /proc/sgx_stats and /proc/sgx_enclaves every second.
 */
 
 mod event;
