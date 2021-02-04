@@ -289,6 +289,14 @@ impl GlobalStats {
             ewb_speed, eldu_speed
         )
         .unwrap();
+
+        write!(
+            self.screen,
+            "total ewb {:>8}, total eldu {:>8} \n\r",
+            sgx_ewb_cnt_new, sgx_eldu_cnt_new
+        )
+        .unwrap();
+
         write!(
             self.screen,
             "EPC mem: {:>8} total, {:>8} free, {:>8} used, {:>8} VA\n\r",
